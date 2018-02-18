@@ -340,8 +340,9 @@ TilingFocusedWindowFloatStatus(void *Data)
 {
     uint32_t WindowId = *(uint32_t *) Data;
     uint32_t Status = *((uint32_t *) Data + 1);
+    uint32_t IsFloatingSpace = *((uint32_t *) Data + 2);
 
-    if (!Status) {
+    if (!Status && !IsFloatingSpace) {
         DrawBorder = true;
         UpdateToFocusedWindow();
     } else {

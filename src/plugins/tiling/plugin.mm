@@ -280,17 +280,45 @@ ClearApplicationCache()
     Applications.clear();
 }
 
+internal bool
+TileWindowPreValidation(macos_window *Window)
+{
+    if (AXLibHasFlags(Window, Window_Float)) {
+        return false;
+    }
+
+    if (!IsWindowValid(Window)) {
+        FloatWindow(Window);
+        return false;
+    }
+
+    if (CVarIntegerValue(CVAR_WINDOW_FLOAT_NEXT)) {
+        FloatWindow(Window);
+        UpdateCVar(CVAR_WINDOW_FLOAT_NEXT, 0);
+        return false;
+    }
+
+    return true;
+}
+
 internal void
 BroadcastFocusedWindowFloating()
 {
-    uint32_t Data[2] = { 0, 0 };
+    uint32_t Data[3] = { 0, 0, 0 };
     API.Broadcast(PluginName, "focused_window_float", (char *) Data, sizeof(Data));
 }
 
 void BroadcastFocusedWindowFloating(macos_window *Window)
 {
-    uint32_t Status = (uint32_t) AXLibHasFlags(Window, Window_Float);
-    uint32_t Data[2] = { Window->Id, Status };
+    macos_space *Space;
+    bool Success = AXLibActiveSpace(&Space);
+    ASSERT(Success);
+    virtual_space *VirtualSpace = AcquireVirtualSpace(Space);
+    uint32_t IsFloatingSpace = VirtualSpace->Mode == Virtual_Space_Float ? 1 : 0;
+    ReleaseVirtualSpace(VirtualSpace);
+    AXLibDestroySpace(Space);
+    uint32_t Status = Window ? (uint32_t) AXLibHasFlags(Window, Window_Float) : 0;
+    uint32_t Data[3] = { Window ? Window->Id : 0, Status, IsFloatingSpace };
     API.Broadcast(PluginName, "focused_window_float", (char *) Data, sizeof(Data));
 }
 
@@ -316,27 +344,6 @@ IsWindowFocusable(macos_window *Window)
                     AXLibHasFlags(Window, Window_ForceTile)) &&
                    (!AXLibHasFlags(Window, Window_Invalid)));
     return Result;
-}
-
-internal bool
-TileWindowPreValidation(macos_window *Window)
-{
-    if (AXLibHasFlags(Window, Window_Float)) {
-        return false;
-    }
-
-    if (!IsWindowValid(Window)) {
-        FloatWindow(Window);
-        return false;
-    }
-
-    if (CVarIntegerValue(CVAR_WINDOW_FLOAT_NEXT)) {
-        FloatWindow(Window);
-        UpdateCVar(CVAR_WINDOW_FLOAT_NEXT, 0);
-        return false;
-    }
-
-    return true;
 }
 
 // NOTE(koekeishiya): Caller is responsible for making sure that the window is a valid window
@@ -1192,7 +1199,7 @@ WindowDestroyedHandler(void *Data)
         if (AXLibHasFlags(Copy, Window_Float)) {
             unsigned FocusedWindowId = CVarUnsignedValue(CVAR_FOCUSED_WINDOW);
             if (Copy->Id == FocusedWindowId) {
-                BroadcastFocusedWindowFloating();
+                BroadcastFocusedWindowFloating(nullptr);
             }
         }
 
